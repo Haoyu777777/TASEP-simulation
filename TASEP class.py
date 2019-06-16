@@ -20,9 +20,9 @@ class TASEP:
         self.particle_count = particle_count
         self.total_time = 0
         self.interval = 1
-        self.lattice = []
-        self.particle_clock = []
-        self.hole_clock = []
+        self.lattice = np.zeros(lattice_size, int)
+        self.particle_clock = np.zeros(lattice_size)
+        self.hole_clock = np.zeros(lattice_size)
         self.time_list = []
         self.initial_structure = []
 
@@ -154,8 +154,6 @@ class TASEP:
         """
             Assign an independent random exponential clock to each particle in the lattice after initialize the lattice structure. Assign 0 to all the holes.
         """
-        # initialize an array with proper size to store random clock
-        self.particle_clock = np.zeros(self.lattice_size)
 
         for i in range(self.lattice_size):
 
@@ -172,8 +170,6 @@ class TASEP:
             Assign an independent random exponential clock to each hole in the lattice with rate multipled by no. of partiles to the right of it. Assign 0 to all particles.
 
         """
-       # initialize an array with proper size to store random clock
-        self.hole_clock = np.zeros(self.lattice_size)
 
         # loop over the array to assign new timer at proper position
         for i in range(self.lattice_size):
@@ -194,8 +190,6 @@ class TASEP:
         """
             Build a Step IC lattice structure with specific amount of particles and specific lattice size. All particle at the left of the lattice and all holes are at the right of the lattice. Record the initial lattice structure and time.
         """
-        # fill all lattice slots with 0 (= empty) first
-        self.lattice = np.zeros(self.lattice_size, int)
 
         # fill the slot occupied by particles with 1 (= occupied) from the left
         for i in range(self.particle_count):
