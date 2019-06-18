@@ -7,6 +7,7 @@ guided by prof Leonid Petrov
 
 
 from matplotlib.animation import FuncAnimation
+import matplotlib.style as mplstyle
 import matplotlib.pyplot as plt
 import numpy as np
 import time
@@ -305,6 +306,25 @@ class TASEP:
 
         return y
 
+    def limitHeightFunction(self, x):
+        """
+        Build a height function of particles in the limiting case, i.e. h = t(1+(x/t)^2)/2 where t is time and x is position.
+
+        Parameters
+        ----------
+        x : float
+            Input x value
+
+        Returns
+        -------
+        y : nparray <int>
+            The output height of lattice in the limiting case
+        """
+
+        # height function of TASEP in limiting case
+        y = self.total_time*(((x-self.lattice_size/2)/self.total_time)**2+1)/2
+        return y
+
     def locationFunc(self):
         """
         Mark the locations of particles on x-axis, given the structure of particle in the lattice.
@@ -334,7 +354,8 @@ class TASEP:
         # y2 = np.zeros(len(x2), int)
 
         # plot graphs based on (x1, y1), (x2, y2) value pairs
-        plt.plot(x1, y1)  # plot x1, y1 as blue line (default)
+        # plot x1, y1 as blue line (default)
+        plt.plot(x1, y1, "y-", label="initial state")
         # plt.plot(x2, y2, "r.")  # plot x2, y2 as red dot
 
 
@@ -342,30 +363,32 @@ class TASEP:
 
 
 # animation
-# time element to be displayed
+
+# real time element to be displayed
 dt = 1./30  # 30 fps
 t0 = time.time()
 t1 = time.time()
 interval = 1000 * dt - (t1 - t0)
 
+# to make the plotting faster
+mplstyle.use('fast')
 
 # set up figure and axis
 fig = plt.figure()
-ax1 = plt.axes()
+ax = plt.axes()
 plt.title('TASEP Simulator')
 
 # hide x, y label
-ax1.xaxis.set_visible(False)
-ax1.yaxis.set_visible(False)
+ax.xaxis.set_visible(False)
+ax.yaxis.set_visible(False)
 
-# initialize and store two lines to be plotted
-lines = []
-line1, = ax1.plot(0, 0)
-line2, = ax1.plot(0, 0, "r.")
-lines.append(line1)
-lines.append(line2)
+# initialize and store three lines to be plotted
+line1, = ax.plot([], [], "c-", label="real-time height")
+line2, = ax.plot([], [], "r.", label="particle")
+line3, = ax.plot([], [], "g-", label="limit-case height")
+
 # text area for time
-time_text = ax1.text(0.05, 0.1, '', transform=ax1.transAxes)
+time_text = ax.text(0.05, 0.1, '', transform=ax.transAxes)
 
 
 # initialize data input
@@ -374,12 +397,17 @@ data.buildStepIC()  # build the lattice structure
 data.runParticleClock()  # randomly generated time for each particle
 
 # wait for 300s' forward jump (for backward simulation)
-while data.total_time < 300:
-    data.jumpForward()
-data.runHoleClock()  # randomly generated time for each hole
+# while data.total_time < 300:
+#     data.jumpForward()
+# data.runHoleClock()  # randomly generated time for each hole
 
 
-# initial graph with 2 lines to be updated
+# draw the initial plot first as reference to the original shape
+# and second to automatically get a better axis range
+data.displayPlot()
+
+
+# initial graph with 3 lines and text to be updated
 def init():
 
     # get new (x1, y1), (x2, y2) value pair
@@ -396,8 +424,7 @@ def init():
     line2.set_data(x2, y2)
 
     time_text.set_text('')
-
-    return lines, time_text
+    return line1, line2, line3, time_text
 
 
 # forward/backward jump animation
@@ -405,10 +432,10 @@ def init():
 def update(i):
 
     # allow only one direction TASEP
-    # data.jumpForward()  # allow the particles to jump forward
-    data.jumpBackward()  # allow the particles to jump backward
+    data.jumpForward()  # allow the particles to jump forward
+    # data.jumpBackward()  # allow the particles to jump backward
 
-    # get new (x1, y1), (x2, y2) value pair
+    # get new (x1, y1), (x2, y2), (x3, y3) value pair
     y1 = data.heightFunc()
     x2 = data.locationFunc()
 
@@ -416,17 +443,24 @@ def update(i):
     line1.set_ydata(y1)
     line2.set_xdata(x2)
 
+    # x3 is in [-T,T] about the center of the graph 
+    x3 = np.arange(data.lattice_size/2-data.total_time, data.lattice_size/2+data.total_time)
+    y3 = data.limitHeightFunction(x3)
+
+    line3.set_data(x3, y3)
+
     time_text.set_text('time = %.5f' % data.total_time)
 
-    return lines, time_text
+    return line1, line2, line3, time_text
 
 
-# draw the initial plot for reference
-data.displayPlot()
+# animate the tasep process
+ani = FuncAnimation(fig, update, frames=data.time_list,
+                     init_func=init, interval=interval, blit=True)
 
-# animation, interval set to 1 to avoid delay
-ani1 = FuncAnimation(fig, update, frames=data.time_list,
-                     init_func=init, interval=interval)
+
+# show legend at upper center
+ax.legend(loc=9)
 
 # show the plotting and animation
 plt.show()
