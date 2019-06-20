@@ -24,7 +24,6 @@ class TASEP:
         self.lattice = np.zeros(lattice_size, int)
         self.particle_clock = np.zeros(lattice_size)
         self.hole_clock = np.zeros(lattice_size)
-        self.time_list = []
         self.initial_structure = []
 
     def __findParticleToRight(self, index):
@@ -196,7 +195,6 @@ class TASEP:
         for i in range(self.particle_count):
             self.lattice[i] = 1
 
-        self.time_list.append(0)  # record time
         self.initial_structure = self.lattice.copy()  # record initial structure
 
     def jumpForward(self):
@@ -210,7 +208,6 @@ class TASEP:
         # find the position of clock with min time in the lattice, and the min time
         position, minTime = self.__particleMinTime(movingParticles)
 
-        self.time_list.append(minTime)  # record time taken for this jump
         self.total_time += minTime  # record the total time taken
 
         # update the clock after jump
@@ -277,7 +274,6 @@ class TASEP:
                 # record that time in clock_array
                 self.hole_clock[i] = t
 
-        self.time_list.append(0)  # record time in the list
         self.total_time += minTime  # increment the total time taken
 
     def heightFunc(self):
@@ -443,10 +439,10 @@ def update(i):
     line1.set_ydata(y1)
     line2.set_xdata(x2)
 
-    # x3 is in [-T,T] about the center of the graph 
-    x3 = np.arange(data.lattice_size/2-data.total_time, data.lattice_size/2+data.total_time)
+    # x3 is in [-T,T] about the center of the graph
+    x3 = np.arange(data.lattice_size/2-data.total_time,
+                   data.lattice_size/2+data.total_time)
     y3 = data.limitHeightFunction(x3)
-
     line3.set_data(x3, y3)
 
     time_text.set_text('time = %.5f' % data.total_time)
@@ -454,13 +450,15 @@ def update(i):
     return line1, line2, line3, time_text
 
 
-# animate the tasep process
-ani = FuncAnimation(fig, update, frames=data.time_list,
-                     init_func=init, interval=interval, blit=True)
-
-
 # show legend at upper center
 ax.legend(loc=9)
+
+# animate the tasep process
+ani = FuncAnimation(fig, update, frames=300,
+                    init_func=init, interval=interval, blit=True)
+
+# save 300/30=10s of the animation
+ani.save('tasep_animation.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
 
 # show the plotting and animation
 plt.show()
