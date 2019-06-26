@@ -196,6 +196,11 @@ class TASEP:
             self.lattice[i] = 1
 
         self.initial_structure = self.lattice.copy()  # record initial structure
+        self.runParticleClock()  # randomly generated time for each particle
+        self.runHoleClock()  # randomly generated time for each hole
+
+        # draw the initial plot first as reference to the original shape and second to automatically get a better axis range
+        self.displayInitialPlot()
 
     def jumpForward(self):
         """
@@ -222,12 +227,21 @@ class TASEP:
             # empty current spot before jump
             self.lattice[position] = 0
 
+            # create an exponential random time for the current position before jump
+            t1 = np.random.exponential(self.interval)
+            self.hole_clock[position] = t1  # reset timer
+
+            # jump forward
+
             position += 1  # increment the postion index
             self.lattice[position] = 1  # occupy the spot after jump
 
-            # create an exponential random time
-            t = np.random.exponential(self.interval)
-            self.particle_clock[position] = t  # reset timer
+            # create an exponential random time for the particle at its new position
+            t2 = np.random.exponential(self.interval)
+            self.particle_clock[position] = t2  # reset timer
+
+            # empty the clock of holes at the new particle spot
+            self.hole_clock[position] = 0
 
         # do not allow the particle to exit from the right if it is at the end of the lattice
         # do not allow a new particle to enter the lattice from the left
@@ -254,8 +268,16 @@ class TASEP:
 
         # reset the lattice structure after the reverse jump
         self.lattice[position] = 1  # now the hole is occupied
+
+        # create an exponential random time for the particle after occupying the hole
+        t1 = np.random.exponential(self.interval)
+        self.particle_clock[position] = t1
+
         # the nearest right particle leaves its original position
         self.lattice[pposition] = 0  # now the particle slot is emptied
+
+        # empty the clock of holes at the old particle spot (now it is a hole)
+        self.particle_clock[pposition] = 0
 
         # reset time within index between position+1 and pposition only
         for i in range(position + 1, pposition + 1):
@@ -270,11 +292,11 @@ class TASEP:
             if n != 0:
 
                 # generate a random time with mean 1/n
-                t = np.random.exponential(self.interval/n)
+                t2 = np.random.exponential(self.interval/n)
                 # record that time in clock_array
-                self.hole_clock[i] = t
+                self.hole_clock[i] = t2
 
-        self.total_time += minTime  # increment the total time taken
+        self.total_time /= np.exp(minTime)  # increment the total time taken
 
     def heightFunc(self):
         """
@@ -319,6 +341,7 @@ class TASEP:
 
         # height function of TASEP in limiting case
         y = self.total_time*(((x-self.lattice_size/2)/self.total_time)**2+1)/2
+
         return y
 
     def locationFunc(self):
@@ -336,29 +359,23 @@ class TASEP:
 
         return x
 
-    def displayPlot(self):
+    def displayInitialPlot(self):
         """
         Display the initial graph given lattice data.
 
         """
-        # height value pair
+        # initial height value pair
         y1 = self.heightFunc()
         x1 = np.arange(len(y1))
 
-        # location value pair
-        # x2 = self.locationFunc()
-        # y2 = np.zeros(len(x2), int)
-
-        # plot graphs based on (x1, y1), (x2, y2) value pairs
-        # plot x1, y1 as blue line (default)
         plt.plot(x1, y1, "y-", label="initial state")
-        # plt.plot(x2, y2, "r.")  # plot x2, y2 as red dot
 
 
 # ------------------------------------------------------------
-
-
+#
 # animation
+#
+
 
 # real time element to be displayed
 dt = 1./30  # 30 fps
@@ -366,8 +383,6 @@ t0 = time.time()
 t1 = time.time()
 interval = 1000 * dt - (t1 - t0)
 
-# to make the plotting faster
-mplstyle.use('fast')
 
 # set up figure and axis
 fig = plt.figure()
@@ -379,8 +394,8 @@ ax.xaxis.set_visible(False)
 ax.yaxis.set_visible(False)
 
 # initialize and store three lines to be plotted
-line1, = ax.plot([], [], "c-", label="real-time height")
 line2, = ax.plot([], [], "r.", label="particle")
+line1, = ax.plot([], [], "c-", label="real-time height")
 line3, = ax.plot([], [], "g-", label="limit-case height")
 
 # text area for time
@@ -390,17 +405,9 @@ time_text = ax.text(0.05, 0.1, '', transform=ax.transAxes)
 # initialize data input
 data = TASEP(particle_count=400, lattice_size=800)
 data.buildStepIC()  # build the lattice structure
-data.runParticleClock()  # randomly generated time for each particle
 
-# wait for 300s' forward jump (for backward simulation)
-# while data.total_time < 300:
-#     data.jumpForward()
-# data.runHoleClock()  # randomly generated time for each hole
-
-
-# draw the initial plot first as reference to the original shape
-# and second to automatically get a better axis range
-data.displayPlot()
+# no of loops in update at which the process is switched
+switchCount = 4000
 
 
 # initial graph with 3 lines and text to be updated
@@ -423,13 +430,15 @@ def init():
     return line1, line2, line3, time_text
 
 
-# forward/backward jump animation
-# update the graph after potential movement
+# forward/backward jump animation, update the graph after potential movement
 def update(i):
 
     # allow only one direction TASEP
-    data.jumpForward()  # allow the particles to jump forward
-    # data.jumpBackward()  # allow the particles to jump backward
+    if i <= switchCount:
+        data.jumpForward()  # allow the particles to jump forward
+
+    else:
+        data.jumpBackward()  # allow the particles to jump backward
 
     # get new (x1, y1), (x2, y2), (x3, y3) value pair
     y1 = data.heightFunc()
@@ -450,14 +459,17 @@ def update(i):
     return line1, line2, line3, time_text
 
 
+# to make the plotting faster
+mplstyle.use('fast')
+
 # show legend at upper center
 ax.legend(loc=9)
 
 # animate the tasep process
-ani = FuncAnimation(fig, update, frames=300,
-                    init_func=init, interval=interval, blit=True)
+ani = FuncAnimation(fig, update, init_func=init,
+                    interval=interval, blit=True, repeat=False)
 
-# save 300/30=10s of the animation
+# save the the animation
 ani.save('tasep_animation.mp4', fps=30, extra_args=['-vcodec', 'libx264'])
 
 # show the plotting and animation
