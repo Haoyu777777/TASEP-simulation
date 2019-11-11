@@ -9,6 +9,18 @@ import sys
 class EqTASEP:
 
     def __init__(self, particle_count=100, lattice_size=200, switch_time=100):
+        """
+            Paramters
+            ---------
+            particle_count : int 
+                The number of particles in the system.
+
+            lattice_size : int
+                The size/length of the lattice for TASEP.
+
+            switch_time : int
+                The amount of time for forward TASEP. The total amount of time is 5 times this amount.
+        """
         self.lattice_size = lattice_size  # record the size of lattice
         self.particle_count = particle_count  # record number of particles
         self.total_time = 0  # total time taken for the dynamics
@@ -22,8 +34,9 @@ class EqTASEP:
         # array of timers for all holes
         self.hole_clock = np.zeros(lattice_size)
         # time interval during the jump
-        self.jump_interval = self.particle_count / 400  # i.e. give 400 points to plot
+        self.jump_interval = 1  # record every second
         self.total_jump = 0  # total no of jumps taken in the process
+        self.result = []  # result points of (time, height)
 
     def __findParticleToRight(self, index):
         """
@@ -88,6 +101,7 @@ class EqTASEP:
             if clock_array[i] < 0:  # i.e. negative time after update
                 # find no of particle to the right
                 n = self.__findParticleToRight(i)
+                clock_array[i] = 0
 
                 # avoid devision by 0, occurs when the last spot is empty
                 if n != 0:
@@ -290,8 +304,7 @@ class EqTASEP:
                 # record that time in clock_array
                 self.hole_clock[i] = t2
 
-        self.total_time += min_time  # decrese the total time taken
-        # do not minus here
+        self.total_time += min_time  # increament the total time taken
 
     def jumpEquil(self):
         """
@@ -300,7 +313,12 @@ class EqTASEP:
         # find the smallest timer in the lattice for hole and particle
         moving_particles = self.__findMovableParticles()
         p_min_time = np.min(self.particle_clock[moving_particles])
-        h_min_time = np.min(self.hole_clock[np.nonzero(self.hole_clock)])
+        h_min_time = 2*p_min_time  # set default of h_min_time to be larger than p_min_time
+
+        # reassign h_min_time if it is not empty
+        h_min_clock = self.hole_clock[np.nonzero(self.hole_clock)]
+        if len(h_min_clock):
+            h_min_time = np.min(h_min_clock)
 
         # jump backward if the timer for a hole is smaller
         if h_min_time <= p_min_time:
@@ -309,6 +327,39 @@ class EqTASEP:
         # jump forward if the timer for a particle is smaller
         elif p_min_time < h_min_time:
             self.jumpForward()
+
+    def run(self, start_after=True):
+        """
+            Run the simulation and append resulting points (time, height) to local variable result
+
+            Parameter
+            ---------
+            start_after : bool
+                The equilibrium process is run after forward process for switch_time.
+        """
+        # forward jump until the switching time(=no. of particle/2 seconds)
+        if start_after:
+            while self.forward_time <= self.switch_time:
+                self.jumpForward()
+
+                # append (timestamp, height) to the local var
+                if self.total_jump <= self.total_time:
+                    self.result.append((self.total_jump, self.heightFunc(
+                        self.lattice)[self.particle_count]))
+                    self.total_jump += self.jump_interval  # increment for the next recording
+
+        # rerun clock for holes once before equilibrium jump
+        self.__runHoleClock()
+
+        # equil jump for a specified amount of time (5* swith_time)
+        while self.total_time <= self.switch_time*5:
+            self.jumpEquil()  # allow the particles to jump in equilibrium
+
+            # append (timestamp, height) to the local var
+            if self.total_jump <= self.total_time:
+                self.result.append((self.total_jump, self.heightFunc(self.lattice)[
+                    self.particle_count]))
+                self.total_jump += self.jump_interval  # increment for the next recording
 
     def heightFunc(self, structure):
         """
@@ -342,7 +393,7 @@ class EqTASEP:
 
     def writeToFile(self, file_name="eq_tasep.txt"):
         """
-            Allow TASEP to run and write information obtained from the process to a local text file.
+            Write information obtained from the TASEP to a local text file.
 
             Parameters
             ----------
@@ -351,27 +402,9 @@ class EqTASEP:
         """
         with open(file_name, "w") as text_file:
 
-            # forward jump until the switching time (= no. of particle/2 seconds)
-            while self.forward_time <= self.switch_time:
-                self.jumpForward()
-
-                # print timestamp and the height to the local file
-                if self.total_jump <= self.total_time:
-                    print((self.total_jump, self.heightFunc(self.lattice)[
-                        self.particle_count]), file=text_file)
-
-                    self.total_jump += self.jump_interval  # increment for the next recording
-
-            # equil jump for a specified amount of time (twice the forward)
-            while self.total_time <= self.switch_time*3:
-                self.jumpEquil()  # allow the particles to jump in equilibrium
-
-                # print timestamp and the height to the local file
-                if self.total_jump <= self.total_time:
-                    print((self.total_jump, self.heightFunc(self.lattice)[
-                        self.particle_count]), file=text_file)
-
-                    self.total_jump += self.jump_interval  # increment for the next recording
+            # print the result points to local text file
+            for point in self.result:
+                print(point, file=text_file)
 
     def plotting(self, file_name="eq_tasep.txt", fig_name="eq_tasep.png"):
         """
@@ -398,7 +431,7 @@ class EqTASEP:
                 data = line.strip("(").strip(")\n").split(", ")
                 # coerce to integer
                 x.append(int(float(data[0])))
-                y.append(int(data[1]))
+                y.append(int(float(data[1])))
 
         # plots setting
         plt.title('Equilibrium TASEP')
@@ -410,7 +443,10 @@ class EqTASEP:
 
 
 # total amount of particle in the simulation, key input
-particle_count = 1000  # try 1000000 particles
+particle_count = 1000  # try more particles (max 1000)
+
+file_name = str(particle_count) + "p.txt"
+fig_name = str(particle_count) + "p.png"
 
 # initialize data input
 data = EqTASEP(
@@ -419,5 +455,21 @@ data = EqTASEP(
     switch_time=particle_count/2
 )
 data.buildStepIC()  # build the lattice structure and its clock
-data.writeToFile()  # run the process and record data to a file
-data.plotting()  # plot and save the process
+data.run()  # run the animation
+data.writeToFile(file_name)  # run the process and record data to a file
+data.plotting(file_name, fig_name)  # plot and save the process
+
+# run the animation for 10 times to take average
+# for i in range(10):
+#     file_name = str(particle_count) + "-" + str(i) + ".txt"
+#     fig_name = str(particle_count) + "-" + str(i) + ".png"
+
+#     # initialize data input
+#     data = EqTASEP(
+#         particle_count=particle_count,
+#         lattice_size=2*particle_count,
+#         switch_time=particle_count/2
+#     )
+#     data.buildStepIC()  # build the lattice structure and its clock
+#     data.run(False)  # run the animation
+#     data.writeToFile(file_name)  # run the process and record data to a file
