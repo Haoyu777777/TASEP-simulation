@@ -12,7 +12,7 @@ class EqTASEP:
         """
             Paramters
             ---------
-            particle_count : int 
+            particle_count : int
                 The number of particles in the system.
 
             lattice_size : int
@@ -458,18 +458,3 @@ data.buildStepIC()  # build the lattice structure and its clock
 data.run()  # run the animation
 data.writeToFile(file_name)  # run the process and record data to a file
 data.plotting(file_name, fig_name)  # plot and save the process
-
-# run the animation for 10 times to take average
-# for i in range(10):
-#     file_name = str(particle_count) + "-" + str(i) + ".txt"
-#     fig_name = str(particle_count) + "-" + str(i) + ".png"
-
-#     # initialize data input
-#     data = EqTASEP(
-#         particle_count=particle_count,
-#         lattice_size=2*particle_count,
-#         switch_time=particle_count/2
-#     )
-#     data.buildStepIC()  # build the lattice structure and its clock
-#     data.run(False)  # run the animation
-#     data.writeToFile(file_name)  # run the process and record data to a file
